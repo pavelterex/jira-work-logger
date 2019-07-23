@@ -1,10 +1,8 @@
-from PyQt5.QtCore import Qt, QRegExp, QDate
-from PyQt5.QtGui import QIcon, QCursor, QRegExpValidator
-from PyQt5.QtWidgets import (QMainWindow, QAction, qApp, QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QScrollArea,
-                             QFrame, QListWidget, QPushButton, QFormLayout, QLineEdit, QComboBox, QMessageBox, QLabel,
-                             QTextBrowser, QFileDialog, QTableWidget, QCalendarWidget, QTableWidgetItem,
-                             QAbstractItemView, QHeaderView, QCheckBox, QGridLayout, QSpinBox)
-from jira import JIRA
+from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import (QMainWindow, QAction, qApp, QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QSpinBox, QFrame,
+                             QPushButton, QFormLayout, QLineEdit, QLabel, QCalendarWidget, QCheckBox, QGridLayout)
+
+from jira_work_logger.jira_helper import WorkAutoLogger
 
 APP_VERSION = '0.1'
 WEEKDAYS = {
@@ -26,6 +24,7 @@ PARAMS = {
     'from_date': '',
     'to_date': ''
 }
+MANDATORY_PARAMS = ['jira_host', 'jira_user', 'jira_pass', 'from_date', 'to_date']
 
 
 class MainWindow(QMainWindow):
@@ -68,13 +67,17 @@ class MainWindow(QMainWindow):
 
     def launch_logging(self):
         self.update_params()
-        print('Launched')
+        WorkAutoLogger(self.params).execute()
 
     def update_start_button(self):
         self.update_params()
         start_btn = self.findChild(QWidget, 'main_buttons', Qt.FindChildrenRecursively).start_btn
 
+        if not [param for param in MANDATORY_PARAMS if not self.params[param]]:
+            start_btn.setEnabled(True)
+            return
 
+        start_btn.setDisabled(True)
 
     def update_params(self):
         # JIRA settings
@@ -128,6 +131,10 @@ class JiraSettings(QGroupBox):
         self.pass_ln = QLineEdit()
         self.pass_ln.setEchoMode(QLineEdit.Password)
 
+        self.host_ln.textChanged.connect(get_main_window().update_start_button)
+        self.user_ln.textChanged.connect(get_main_window().update_start_button)
+        self.pass_ln.textChanged.connect(get_main_window().update_start_button)
+
         layout.addRow('Host:', self.host_ln)
         layout.addRow('User:', self.user_ln)
         layout.addRow('Pass:', self.pass_ln)
@@ -155,7 +162,8 @@ class DateSelector(QGroupBox):
         self.from_cal = QCalendarWidget(from_frame)
         self.from_cal.setGridVisible(True)
         self.from_cal.setFirstDayOfWeek(Qt.DayOfWeek(1))
-        self.from_cal.clicked.connect(lambda: self.update_calendars())
+        self.from_cal.clicked.connect(self.update_calendars)
+        self.from_cal.clicked.connect(get_main_window().update_start_button)
 
         from_layout.addWidget(self.from_cal, 0, Qt.AlignHCenter)
         from_layout.addWidget(self.from_lbl, 0, Qt.AlignHCenter)
@@ -170,7 +178,8 @@ class DateSelector(QGroupBox):
         self.to_cal = QCalendarWidget(to_frame)
         self.to_cal.setGridVisible(True)
         self.to_cal.setFirstDayOfWeek(Qt.DayOfWeek(1))
-        self.to_cal.clicked.connect(lambda: self.update_calendars())
+        self.to_cal.clicked.connect(self.update_calendars)
+        self.to_cal.clicked.connect(get_main_window().update_start_button)
         self.to_cal.setDisabled(True)
 
         to_layout.addWidget(self.to_cal, 0, Qt.AlignHCenter)
@@ -212,7 +221,7 @@ class DaysConfigurator(QGroupBox):
             checkbox = QCheckBox()
             checkbox.setText(day)
             checkbox.setChecked(state)
-            checkbox.stateChanged.connect(lambda: self.update_weekdays())
+            checkbox.stateChanged.connect(self.update_weekdays)
             week_layout.addWidget(checkbox, 0, Qt.AlignHCenter)
             self.weekday_switches.append(checkbox)
 
