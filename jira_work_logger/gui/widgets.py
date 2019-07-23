@@ -2,7 +2,7 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (QMainWindow, QAction, qApp, QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QSpinBox, QFrame,
                              QPushButton, QFormLayout, QLineEdit, QLabel, QCalendarWidget, QCheckBox, QGridLayout)
 
-from jira_work_logger.jira_helper import WorkAutoLogger
+from jira_work_logger.main_worker import MainWorker
 
 APP_VERSION = '0.1'
 WEEKDAYS = {
@@ -67,7 +67,7 @@ class MainWindow(QMainWindow):
 
     def launch_logging(self):
         self.update_params()
-        WorkAutoLogger(self.params).execute()
+        MainWorker(self.params).execute()
 
     def update_start_button(self):
         self.update_params()
@@ -94,8 +94,8 @@ class MainWindow(QMainWindow):
 
         # Date settings
         date_widget = self.findChild(QWidget, 'dates_selector', Qt.FindChildrenRecursively)
-        self.params['from_date'] = date_widget.from_cal.selectedDate().toString()
-        self.params['to_date'] = date_widget.to_cal.selectedDate().toString()
+        self.params['from_date'] = date_widget.from_cal.selectedDate().toString(Qt.ISODate)
+        self.params['to_date'] = date_widget.to_cal.selectedDate().toString(Qt.ISODate)
 
 
 class UpperSettingsPanel(QWidget):
@@ -193,10 +193,10 @@ class DateSelector(QGroupBox):
         if self.from_cal.selectedDate():
             self.to_cal.setEnabled(True)
             self.to_cal.setMinimumDate(self.from_cal.selectedDate())
-            self.from_lbl.setText(self.from_cal.selectedDate().toString())
+            self.from_lbl.setText(self.from_cal.selectedDate().toString(Qt.ISODate))
 
         if self.to_cal.selectedDate():
-            self.to_lbl.setText(self.to_cal.selectedDate().toString())
+            self.to_lbl.setText(self.to_cal.selectedDate().toString(Qt.ISODate))
 
 
 class DaysConfigurator(QGroupBox):
