@@ -2,29 +2,8 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (QMainWindow, QAction, qApp, QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QSpinBox, QFrame,
                              QPushButton, QFormLayout, QLineEdit, QLabel, QCalendarWidget, QCheckBox, QGridLayout)
 
-from jira_work_logger.main_worker import MainWorker
-
-APP_VERSION = '0.1'
-WEEKDAYS = {
-    'MO': True,
-    'TU': True,
-    'WE': True,
-    'TH': True,
-    'FR': True,
-    'SA': False,
-    'SU': False
-}
-PARAMS = {
-    'jira_host': '',
-    'jira_user': '',
-    'jira_pass': '',
-    'work_days': {},
-    'target_hrs': '',
-    'extra_tasks': {},
-    'from_date': '',
-    'to_date': ''
-}
-MANDATORY_PARAMS = ['jira_host', 'jira_user', 'jira_pass', 'from_date', 'to_date']
+from ..constants import *
+from ..main_worker import MainWorker
 
 
 class MainWindow(QMainWindow):
@@ -67,7 +46,7 @@ class MainWindow(QMainWindow):
 
     def launch_logging(self):
         self.update_params()
-        MainWorker(self.params).execute()
+        MainWorker(self.params).execute_autologging()
 
     def update_start_button(self):
         self.update_params()
