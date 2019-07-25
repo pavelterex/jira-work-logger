@@ -44,7 +44,7 @@ class MainWindow(QMainWindow):
         # Displaying root as main widget
         self.setCentralWidget(root)
 
-    def launch_logging(self):
+    def execute_autologging(self):
         self.update_params()
         LogWorker(self.params).execute_autologging()
 
@@ -241,7 +241,7 @@ class MainButtons(QWidget):
 
         self.start_btn = QPushButton('Start')
         self.start_btn.setFixedWidth(100)
-        self.start_btn.clicked.connect(get_main_window().launch_logging)
+        self.start_btn.clicked.connect(get_main_window().execute_autologging)
 
         layout.addWidget(self.start_btn, 0, Qt.AlignHCenter)
 
@@ -255,4 +255,4 @@ def get_main_window():
 
 def tasks_string_to_dict(tasks_string: str):
     """Convert input string like 'BR-3452:5 BR-226:8' to common dict"""
-    return {k: int(v) for k, v in [x.split(':') for x in tasks_string.split(' ') if x]}
+    return {k: v for k, v in [x.split(':') for x in tasks_string.split(' ') if x]}

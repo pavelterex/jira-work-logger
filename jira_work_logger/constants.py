@@ -21,10 +21,14 @@ PARAMS = {
     'to_date': ''
 }
 MANDATORY_PARAMS = ['jira_host', 'jira_user', 'jira_pass', 'from_date', 'to_date']
-ISSUE_ACTIVE_STATUSES = ['DOING', 'VERIFYING']
-ISSUE_FIELDS = ['assignee', 'components', 'created', 'creator', 'description', 'issuetype', 'labels', 'priority',
-                'project', 'reporter', 'resolution', 'resolutiondate', 'status', 'subtasks', 'summary', 'timespent',
-                'updated', 'worklog']
+
+TASK_INPROGRESS_STATUS = 'DOING'
+TASK_REVIEW_STATUS = 'VERIFYING'
+
+# Chosen fields of tasks being loaded from JIRA
+TASK_FIELDS = ['assignee', 'components', 'created', 'creator', 'description', 'issuetype', 'labels', 'priority',
+               'project', 'reporter', 'resolution', 'resolutiondate', 'status', 'subtasks', 'summary', 'timespent',
+               'transitions', 'updated', 'worklog']
 
 
 class IsoWeekdays(IntEnum):
@@ -35,3 +39,10 @@ class IsoWeekdays(IntEnum):
     FR = 5
     SA = 6
     SU = 7
+
+
+class TimeToSec(IntEnum):
+    d = 86400
+    h = 3600
+    m = 60
+    s = 1
