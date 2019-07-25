@@ -5,24 +5,37 @@ from jira import JIRA
 from .constants import *
 
 
-class MainWorker:
+class LogWorker:
     def __init__(self, settings):
         self.settings = settings
         self._conn = None
-        self._issues = None
+        self._loaded_issues = None
+        self._loaded_worklogs = None
         self._work_dates = None
 
     @property
     def conn(self):
         if not self._conn:
             self._conn = self.establish_connection()
+
         return self._conn
 
     @property
-    def issues(self):
-        if not self._issues:
-            self._issues = self.get_issues(ISSUE_ACTIVE_STATUSES, self.settings['work_days'])
-        return self._issues
+    def loaded_issues(self):
+        if not self._loaded_issues:
+            self._loaded_issues = self.load_issues(ISSUE_ACTIVE_STATUSES, self.settings['work_days'])
+
+        return self._loaded_issues
+
+    @property
+    def loaded_worklogs(self):
+        if not self._loaded_worklogs:
+            self._loaded_worklogs = {}
+
+            for issue in self.loaded_issues:
+                self._loaded_worklogs[issue.key] = issue.fields.worklog.worklogs
+
+        return self._loaded_worklogs
 
     @property
     def work_dates(self):
@@ -39,23 +52,24 @@ class MainWorker:
             return
         return conn
 
-    def get_issues(self, status: Union[str, Iterable]='', date: Union[str, Iterable]=''):
-        """Get issues that can be filtered by statuses and\or dates"""
+    def load_issues(self, status: Union[str, Iterable]= '', date: Union[str, Iterable]= ''):
+        """Load loaded_issues that can be filtered by statuses and\or dates"""
         status_filter = f' AND Status was "{status}"' if isinstance(status, str) else f' AND Status was IN ({status})'
         date_filter = f' ON "{date}"' if isinstance(date, str) else f' DURING ("{date[0]}","{date[1]}")'
         query = f'assignee = currentUser(){status_filter}{date_filter}'
-        issues = self.conn.search_issues(jql_str=query, expand='worklog')
+        issues = self.conn.search_issues(jql_str=query, fields=ISSUE_FIELDS)
         return issues
 
-    def get_logged_time(self, date: Union[str, Iterable]=''):
-        """Get already logged time in seconds within given date or period"""
-        sec_logged = 0
+    def calculate_logged_time_for_date(self, date: str):
+        """Calculate already logged time in seconds for given date"""
+        seconds_logged = 0
+        flatten_worklogs = [item for sublist in self.loaded_worklogs.values() for item in sublist]
 
-        for _issue in self.issues:
+        for item in flatten_worklogs:
+            if item.started.split('T')[0] == date:
+                seconds_logged += item.timeSpentSeconds
 
-
-        return sec_logged
-
+        return seconds_logged
 
     def get_work_dates_for_period(self):
         """Get work dates from given dates range using given work weekdays filter"""
@@ -72,8 +86,19 @@ class MainWorker:
 
         return work_dates
 
-
     def execute_autologging(self):
         work_dates = self.get_work_dates_for_period()
 
-        # for _date in work_dates:
+        # Processing day by day
+        for _date in work_dates:
+            logged_hrs = self.calculate_logged_time_for_date(str(_date))
+            needed_hrs = self.settings['target_hrs'] - logged_hrs
+
+            if needed_hrs <= 0:
+                print(f'Date {str(_date)} already has {logged_hrs} hours logged')
+                continue
+
+
+
+
+

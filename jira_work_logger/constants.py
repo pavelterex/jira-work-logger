@@ -22,6 +22,9 @@ PARAMS = {
 }
 MANDATORY_PARAMS = ['jira_host', 'jira_user', 'jira_pass', 'from_date', 'to_date']
 ISSUE_ACTIVE_STATUSES = ['DOING', 'VERIFYING']
+ISSUE_FIELDS = ['assignee', 'components', 'created', 'creator', 'description', 'issuetype', 'labels', 'priority',
+                'project', 'reporter', 'resolution', 'resolutiondate', 'status', 'subtasks', 'summary', 'timespent',
+                'updated', 'worklog']
 
 
 class IsoWeekdays(IntEnum):

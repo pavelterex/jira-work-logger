@@ -3,7 +3,7 @@ from PyQt5.QtWidgets import (QMainWindow, QAction, qApp, QWidget, QVBoxLayout, Q
                              QPushButton, QFormLayout, QLineEdit, QLabel, QCalendarWidget, QCheckBox, QGridLayout)
 
 from ..constants import *
-from ..main_worker import MainWorker
+from ..log_worker import LogWorker
 
 
 class MainWindow(QMainWindow):
@@ -46,7 +46,7 @@ class MainWindow(QMainWindow):
 
     def launch_logging(self):
         self.update_params()
-        MainWorker(self.params).execute_autologging()
+        LogWorker(self.params).execute_autologging()
 
     def update_start_button(self):
         self.update_params()
