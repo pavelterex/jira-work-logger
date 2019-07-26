@@ -28,16 +28,6 @@ class LogWorker:
 
         return self._loaded_tasks
 
-    # @property
-    # def loaded_worklogs(self):
-    #     if not self._loaded_worklogs:
-    #         self._loaded_worklogs = {}
-    #
-    #         for task in self.loaded_tasks:
-    #             self._loaded_worklogs[task.key] = task.fields.worklog.worklogs
-    #
-    #     return self._loaded_worklogs
-
     @property
     def work_dates(self):
         if not self._work_dates:
@@ -58,22 +48,23 @@ class LogWorker:
         status_filter = f' AND Status was "{status}"' if isinstance(status, str) else f' AND Status was IN {status}'
         date_filter = f' ON "{date}"' if isinstance(date, str) else f' DURING ("{date[0]}","{date[1]}")'
         query = f'assignee = currentUser(){status_filter}{date_filter}'
-        tasks = self.conn.search_issues(jql_str=query, fields=TASK_FIELDS)
+        tasks = self.conn.search_issues(jql_str=query, maxResults=1000)
         return tasks
 
     def calculate_logged_seconds_for_date(self, date: str):
         """Calculate already logged time in seconds by user for given date"""
         seconds_logged = 0
         query = f'worklogAuthor = currentUser() AND worklogDate = {date}'
-        logged_tasks = self.conn.search_issues(query, fields='worklog')
-        flatten_worklogs = []
+        logged_tasks = self.conn.search_issues(query)
+        user_worklogs = []
 
         for task in logged_tasks.iterable:
-            flatten_worklogs.extend(task.fields.worklog.worklogs)
+            task_wlogs = [wlog for wlog in self.conn.worklogs(task.key) if wlog.started.split('T')[0] == date and
+                          wlog.author.name == self.settings['jira_user']]
+            user_worklogs.extend(task_wlogs)
 
-        for item in flatten_worklogs:
-            if item.started.split('T')[0] == date and item.author.name == self.settings['jira_user']:
-                seconds_logged += item.timeSpentSeconds
+        for item in user_worklogs:
+            seconds_logged += item.timeSpentSeconds
 
         return seconds_logged
 
@@ -98,6 +89,8 @@ class LogWorker:
 
         # Processing date by date
         for _date in work_dates:
+            # TODO: Get rid of time hard code
+            date = datetime.strptime(f'{_date}T06:00:40-0500', '%Y-%m-%dT%H:%M:%S%z')
             logged_sec = self.calculate_logged_seconds_for_date(str(_date))
             needed_sec = (self.settings['target_hrs'] * 3600) - logged_sec
 
@@ -113,21 +106,24 @@ class LogWorker:
             # Low priority - tasks with status like "verifying"
 
             ranked_tasks = {
-                'high': self.settings['extra_tasks'].items(),
+                'high': list(self.settings['extra_tasks'].items()),
                 'medium': self.load_tasks(TASK_INPROGRESS_STATUS, _date).iterable,
                 'low': self.load_tasks(TASK_REVIEW_STATUS, _date).iterable
             }
 
+            # Removing occurrencies of Med tasks in Low tasks if any
+            ranked_tasks['low'] = [task for task in ranked_tasks['low'] if task not in ranked_tasks['medium']]
+
             # Beginning of work logging cycle within High priority tasks
             # In this case we log work for every task if amount of time to be logged won't exceed needed time amount
-            while ranked_tasks['high'] or needed_sec:
+            while ranked_tasks['high'] and needed_sec:
                 task, time_str = ranked_tasks['high'].pop()
                 time_sec = str_to_sec(time_str)
                 if needed_sec - time_sec < 0:
-                    self.conn.add_worklog(task, timeSpentSeconds=time_sec - needed_sec, started=_date)
+                    self.conn.add_worklog(task, timeSpentSeconds=time_sec - needed_sec, started=date)
                     needed_sec = 0
                 else:
-                    self.conn.add_worklog(task, timeSpentSeconds=time_sec, started=_date)
+                    self.conn.add_worklog(task, timeSpentSeconds=time_sec, started=date)
                     needed_sec -= time_sec
 
             # Beginning of work logging cycle within Medium and Low Priority task
@@ -136,26 +132,40 @@ class LogWorker:
                 time_per_low = ((needed_sec / 3600) % len(ranked_tasks['medium'])) * 3600
 
                 for task in ranked_tasks['medium']:
-                    self.conn.add_worklog(task.key, timeSpentSeconds=time_per_med, started=_date)
+                    self.conn.add_worklog(task.key, timeSpentSeconds=time_per_med, started=date)
 
                 if time_per_low:
-                    self.conn.add_worklog(ranked_tasks['low'][0], timeSpentSeconds=time_per_low, started=_date)
+                    self.conn.add_worklog(ranked_tasks['low'][0], timeSpentSeconds=time_per_low, started=date)
 
             elif len(ranked_tasks['medium']) and not ranked_tasks['low']:
                 time_per_med = ((needed_sec / 3600) / len(ranked_tasks['medium'])) * 3600
 
                 for task in ranked_tasks['medium']:
-                    self.conn.add_worklog(task.key, timeSpentSeconds=time_per_med, started=_date)
+                    self.conn.add_worklog(task.key, timeSpentSeconds=time_per_med, started=date)
 
             elif not len(ranked_tasks['medium']) and ranked_tasks['low']:
                 time_per_low = ((needed_sec / 3600) % len(ranked_tasks['medium'])) * 3600
 
                 for task in ranked_tasks['low']:
-                    self.conn.add_worklog(task.key, timeSpentSeconds=time_per_low, started=_date)
+                    self.conn.add_worklog(task.key, timeSpentSeconds=time_per_low, started=date)
+
+            elif not len(ranked_tasks['medium']) and not ranked_tasks['low']:
+                print(f'{_date}: No medium or low priority tasks provided!')
+
+            # Summarizing results
+            currently_logged_sec = self.calculate_logged_seconds_for_date(str(_date))
+            diff_sec = (self.settings['target_hrs'] * 3600) - currently_logged_sec
+
+            if not diff_sec:
+                print(f'{_date}: Worklog is fully completed with {self.settings["target_hrs"]} hours as required.')
+            elif diff_sec > 0:
+                print(f'{_date}: Worklog still require {diff_sec / 3600} hours to be logged!')
+            elif diff_sec < 0:
+                print(f'{_date}: Worklog has been overlogged by {abs(diff_sec) / 3600} hours!')
 
         return
 
 
 def str_to_sec(time_str: str):
     if time_str[-1] in 'dhms':
-        return int(time_str[:-1] * TimeToSec[time_str[-1]])
+        return int(time_str[:-1]) * TimeToSec[time_str[-1]]

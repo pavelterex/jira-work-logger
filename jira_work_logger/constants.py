@@ -25,11 +25,6 @@ MANDATORY_PARAMS = ['jira_host', 'jira_user', 'jira_pass', 'from_date', 'to_date
 TASK_INPROGRESS_STATUS = 'DOING'
 TASK_REVIEW_STATUS = 'VERIFYING'
 
-# Chosen fields of tasks being loaded from JIRA
-TASK_FIELDS = ['assignee', 'components', 'created', 'creator', 'description', 'issuetype', 'labels', 'priority',
-               'project', 'reporter', 'resolution', 'resolutiondate', 'status', 'subtasks', 'summary', 'timespent',
-               'transitions', 'updated', 'worklog']
-
 
 class IsoWeekdays(IntEnum):
     MO = 1

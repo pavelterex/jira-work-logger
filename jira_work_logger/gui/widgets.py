@@ -144,8 +144,8 @@ class DateSelector(QGroupBox):
         self.from_cal.clicked.connect(self.update_calendars)
         self.from_cal.clicked.connect(get_main_window().update_start_button)
 
-        from_layout.addWidget(self.from_cal, 0, Qt.AlignHCenter)
         from_layout.addWidget(self.from_lbl, 0, Qt.AlignHCenter)
+        from_layout.addWidget(self.from_cal, 0, Qt.AlignHCenter)
 
         # Setup 'To' selector
         to_frame = QFrame(self, Qt.Widget)
@@ -161,8 +161,8 @@ class DateSelector(QGroupBox):
         self.to_cal.clicked.connect(get_main_window().update_start_button)
         self.to_cal.setDisabled(True)
 
-        to_layout.addWidget(self.to_cal, 0, Qt.AlignHCenter)
         to_layout.addWidget(self.to_lbl, 0, Qt.AlignHCenter)
+        to_layout.addWidget(self.to_cal, 0, Qt.AlignHCenter)
 
         # Placing selectors to root layout
         self.layout.addWidget(from_frame, 0, Qt.AlignCenter)
@@ -218,7 +218,7 @@ class DaysConfigurator(QGroupBox):
         self.extra_tasks = QLineEdit()
 
         misc_layout.addRow('Target working hours per day:', self.target_hrs)
-        misc_layout.addRow('Extra daily tasks (task:hrs)', self.extra_tasks)
+        misc_layout.addRow('Daily tasks (task:time task:time)', self.extra_tasks)
 
         # Placing sub-widgets to root layout
         self.layout.addWidget(week_frame, 0, Qt.AlignTop)
