@@ -1,4 +1,8 @@
+from pathlib import Path
+
+import yaml
 from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import (QMainWindow, QAction, qApp, QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QSpinBox, QFrame,
                              QPushButton, QFormLayout, QLineEdit, QLabel, QCalendarWidget, QCheckBox, QGridLayout)
 
@@ -12,6 +16,7 @@ class MainWindow(QMainWindow):
         self.setObjectName('main_window')
         self.menubar = self.menuBar()
         self.params = PARAMS
+        self.load_config()
         self.init_ui()
         self.update_start_button()
 
@@ -19,7 +24,7 @@ class MainWindow(QMainWindow):
         # Setting window geometry
         self.setContentsMargins(1, 1, 1, 1)
         self.setWindowTitle('JIRA work logger')
-        # self.setWindowIcon(QIcon('misc/projectavatar.ico'))
+        self.setWindowIcon(QIcon('gui/misc/clock-icon.png'))
 
         # Setting menu bar
         app_menu = self.menubar.addMenu('App')  # File menu
@@ -45,11 +50,11 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(root)
 
     def execute_autologging(self):
-        self.update_params()
+        self.read_params()
         LogWorker(self.params).execute_autologging()
 
     def update_start_button(self):
-        self.update_params()
+        self.read_params()
         start_btn = self.findChild(QWidget, 'main_buttons', Qt.FindChildrenRecursively).start_btn
 
         if not [param for param in MANDATORY_PARAMS if not self.params[param]]:
@@ -58,7 +63,7 @@ class MainWindow(QMainWindow):
 
         start_btn.setDisabled(True)
 
-    def update_params(self):
+    def read_params(self):
         # JIRA settings
         jira_widget = self.findChild(QWidget, 'jira_settings', Qt.FindChildrenRecursively)
         self.params['jira_host'] = jira_widget.host_ln.text()
@@ -69,12 +74,19 @@ class MainWindow(QMainWindow):
         days_widget = self.findChild(QWidget, 'days_config', Qt.FindChildrenRecursively)
         self.params['work_days'] = days_widget.weekdays
         self.params['target_hrs'] = days_widget.target_hrs.value()
-        self.params['extra_tasks'] = tasks_string_to_dict(days_widget.extra_tasks.text())
+        self.params['daily_tasks'] = tasks_string_to_dict(days_widget.daily_tasks.text())
 
         # Date settings
         date_widget = self.findChild(QWidget, 'dates_selector', Qt.FindChildrenRecursively)
         self.params['from_date'] = date_widget.from_cal.selectedDate().toString(Qt.ISODate)
         self.params['to_date'] = date_widget.to_cal.selectedDate().toString(Qt.ISODate)
+
+    def load_config(self):
+        config_path = Path(CONFIG_FILE)
+
+        if config_path.exists():
+            self.params.update(yaml.load(config_path.read_text(), Loader=yaml.BaseLoader))
+            return
 
 
 class UpperSettingsPanel(QWidget):
@@ -110,13 +122,17 @@ class JiraSettings(QGroupBox):
         self.pass_ln = QLineEdit()
         self.pass_ln.setEchoMode(QLineEdit.Password)
 
-        self.host_ln.textChanged.connect(get_main_window().update_start_button)
-        self.user_ln.textChanged.connect(get_main_window().update_start_button)
-        self.pass_ln.textChanged.connect(get_main_window().update_start_button)
-
         layout.addRow('Host:', self.host_ln)
         layout.addRow('User:', self.user_ln)
         layout.addRow('Pass:', self.pass_ln)
+
+        self.host_ln.setText(get_main_window().params['jira_host'])
+        self.user_ln.setText(get_main_window().params['jira_user'])
+        self.pass_ln.setText(get_main_window().params['jira_pass'])
+
+        self.host_ln.textChanged.connect(get_main_window().update_start_button)
+        self.user_ln.textChanged.connect(get_main_window().update_start_button)
+        self.pass_ln.textChanged.connect(get_main_window().update_start_button)
 
 
 class DateSelector(QGroupBox):
@@ -137,6 +153,7 @@ class DateSelector(QGroupBox):
 
         self.from_lbl = QLabel(from_frame)
         self.from_lbl.setText('Select From date')
+        self.from_lbl.setStyleSheet('font: bold')
 
         self.from_cal = QCalendarWidget(from_frame)
         self.from_cal.setGridVisible(True)
@@ -153,6 +170,7 @@ class DateSelector(QGroupBox):
 
         self.to_lbl = QLabel(to_frame)
         self.to_lbl.setText('Select To date')
+        self.to_lbl.setStyleSheet('font: bold')
 
         self.to_cal = QCalendarWidget(to_frame)
         self.to_cal.setGridVisible(True)
@@ -215,10 +233,11 @@ class DaysConfigurator(QGroupBox):
         self.target_hrs.setRange(1, 24)
         self.target_hrs.setValue(8)
 
-        self.extra_tasks = QLineEdit()
+        self.daily_tasks = QLineEdit()
 
         misc_layout.addRow('Target working hours per day:', self.target_hrs)
-        misc_layout.addRow('Daily tasks (task:time task:time)', self.extra_tasks)
+        misc_layout.addRow('Daily tasks (task:time task:time)', self.daily_tasks)
+        self.daily_tasks.setText(tasks_dict_to_string(get_main_window().params['daily_tasks']))
 
         # Placing sub-widgets to root layout
         self.layout.addWidget(week_frame, 0, Qt.AlignTop)
@@ -253,6 +272,11 @@ def get_main_window():
     return main
 
 
-def tasks_string_to_dict(tasks_string: str):
+def tasks_string_to_dict(tasks_string: str) -> dict:
     """Convert input string like 'BR-3452:5 BR-226:8' to common dict"""
     return {k: v for k, v in [x.split(':') for x in tasks_string.split(' ') if x]}
+
+
+def tasks_dict_to_string(tasks_dict: dict) -> str:
+    """Convert input dict to string of daily tasks"""
+    return ' '.join([f'{k}:{v}' for k, v in list(tasks_dict.items())])

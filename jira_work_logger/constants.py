@@ -16,7 +16,7 @@ PARAMS = {
     'jira_pass': '',
     'work_days': {},
     'target_hrs': '',
-    'extra_tasks': {},
+    'daily_tasks': {},
     'from_date': '',
     'to_date': ''
 }
@@ -24,6 +24,7 @@ MANDATORY_PARAMS = ['jira_host', 'jira_user', 'jira_pass', 'from_date', 'to_date
 
 TASK_INPROGRESS_STATUS = 'DOING'
 TASK_REVIEW_STATUS = 'VERIFYING'
+CONFIG_FILE = 'config.yaml'
 
 
 class IsoWeekdays(IntEnum):
@@ -37,7 +38,6 @@ class IsoWeekdays(IntEnum):
 
 
 class TimeToSec(IntEnum):
-    d = 86400
     h = 3600
     m = 60
     s = 1

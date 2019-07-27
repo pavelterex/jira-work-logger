@@ -106,7 +106,7 @@ class LogWorker:
             # Low priority - tasks with status like "verifying"
 
             ranked_tasks = {
-                'high': list(self.settings['extra_tasks'].items()),
+                'high': list(self.settings['daily_tasks'].items()),
                 'medium': self.load_tasks(TASK_INPROGRESS_STATUS, _date).iterable,
                 'low': self.load_tasks(TASK_REVIEW_STATUS, _date).iterable
             }
