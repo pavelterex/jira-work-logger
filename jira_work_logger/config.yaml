@@ -1,6 +1,6 @@
 jira_host: https://jira.solarwinds.com
-jira_user: pavel.terekhov
-jira_pass: 1234567Solarwinds
+jira_user: 
+jira_pass: 
 
 daily_tasks:
   BR-408: 30m
