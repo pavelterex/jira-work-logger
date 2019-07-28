@@ -4,7 +4,8 @@ import yaml
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import (QMainWindow, QAction, qApp, QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QSpinBox, QFrame,
-                             QPushButton, QFormLayout, QLineEdit, QLabel, QCalendarWidget, QCheckBox, QGridLayout)
+                             QPushButton, QFormLayout, QLineEdit, QLabel, QCalendarWidget, QCheckBox, QGridLayout,
+                             QTextEdit)
 
 from ..constants import *
 from ..log_worker import LogWorker
@@ -51,7 +52,9 @@ class MainWindow(QMainWindow):
 
     def execute_autologging(self):
         self.read_params()
-        LogWorker(self.params).execute_autologging()
+        worker = LogWorker(self.params)
+        # LoggerWindow(self, worker).show()
+        worker.execute_autologging()
 
     def update_start_button(self):
         self.read_params()
@@ -263,6 +266,31 @@ class MainButtons(QWidget):
         self.start_btn.clicked.connect(get_main_window().execute_autologging)
 
         layout.addWidget(self.start_btn, 0, Qt.AlignHCenter)
+
+
+# class LoggerWindow(QMainWindow):
+#     def __init__(self, parent, worker):
+#         self.parent = parent
+#         self.worker = worker
+#         self.output = QTextEdit()
+#         super().__init__(self.parent, Qt.Window)
+#         self.worker.log_msg.connect(self.output.append)
+#
+#     def init_ui(self):
+#         # Setting window geometry
+#         self.setContentsMargins(2, 2, 2, 2)
+#         self.setMinimumSize(650, 400)
+#         self.setWindowTitle('Processing requests')
+#         self.setWindowIcon(QIcon('misc/projectavatar.ico'))
+#         self.setWindowModality(Qt.WindowModal)
+#
+#         # Setting root frame
+#         root = QWidget(self, Qt.Widget)
+#         root_layout = QVBoxLayout(root)
+#         root_layout.setContentsMargins(3, 3, 3, 3)
+#
+#         root_layout.addWidget(self.output, 0, Qt.AlignHCenter)
+#         self.setCentralWidget(root)
 
 
 def get_main_window():

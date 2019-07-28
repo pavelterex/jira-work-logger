@@ -1,11 +1,15 @@
-from typing import Union, Iterable
 from datetime import datetime, timedelta
+from typing import Union, Iterable
 
+from PyQt5.QtCore import pyqtSignal
 from jira import JIRA
+
 from .constants import *
 
 
 class LogWorker:
+    # log_msg = pyqtSignal(str)
+
     def __init__(self, settings):
         self.settings = settings
         self._conn = None
@@ -85,6 +89,7 @@ class LogWorker:
 
     def execute_autologging(self):
         # Defining whole list of work dates to be iterated through
+        self.log_msg.emit('Process started')
         work_dates = self.get_work_dates_for_period()
 
         # Processing date by date
@@ -164,6 +169,7 @@ class LogWorker:
                 print(f'{_date}: Worklog has been overlogged by {abs(diff_sec) / 3600} hours!')
 
         return
+
 
 
 def str_to_sec(time_str: str):
