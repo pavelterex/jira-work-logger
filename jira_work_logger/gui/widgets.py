@@ -1,4 +1,5 @@
 from pathlib import Path
+from datetime import datetime
 
 import yaml
 from PyQt5.QtCore import Qt
@@ -18,12 +19,14 @@ class MainWindow(QMainWindow):
         self.menubar = self.menuBar()
         self.params = PARAMS
         self.load_config()
+        self.configurator = LoggerConfigurator(self)
+        self.console = LoggerConsole(self)
         self.init_ui()
         self.update_start_button()
 
     def init_ui(self):
         # Setting window geometry
-        self.setContentsMargins(1, 1, 1, 1)
+        self.setContentsMargins(3, 3, 3, 3)
         self.setWindowTitle('JIRA work logger')
         self.setWindowIcon(QIcon('gui/misc/clock-icon.png'))
 
@@ -34,26 +37,18 @@ class MainWindow(QMainWindow):
         exit_action.triggered.connect(qApp.quit)
         app_menu.addAction(exit_action)
 
-        # Setting status bar
-        self.statusBar().setSizeGripEnabled(True)
-        self.statusBar().setStyleSheet('font-size: 10pt; font-family: Calibri; text-align: left; background: white;')
-
-        # Setting root frame
-        root = QWidget(self, Qt.Widget)
-        root_layout = QVBoxLayout(root)
-
-        # Setting widgets of main window
-        root_layout.addWidget(UpperSettingsPanel(root), 0, Qt.AlignTop)
-        root_layout.addWidget(DateSelector(root), 1, Qt.AlignTop)
-        root_layout.addWidget(MainButtons(root), 0, Qt.AlignRight)
-
-        # Displaying root as main widget
-        self.setCentralWidget(root)
+        self.setCentralWidget(self.configurator)
+        self.console.hide()
 
     def execute_autologging(self):
         self.read_params()
+        self.configurator.hide()
+        self.console.show()
+        self.setCentralWidget(self.console)
+
         worker = LogWorker(self.params)
-        # LoggerWindow(self, worker).show()
+        worker.msg.connect(self.console.print_output)
+
         worker.execute_autologging()
 
     def update_start_button(self):
@@ -90,6 +85,36 @@ class MainWindow(QMainWindow):
         if config_path.exists():
             self.params.update(yaml.load(config_path.read_text(), Loader=yaml.BaseLoader))
             return
+
+
+class LoggerConfigurator(QWidget):
+    def __init__(self, parent):
+        super().__init__(parent, Qt.Widget)
+        self.setObjectName('logger_configurator')
+        self.layout = QVBoxLayout(self)
+        self.layout.addWidget(UpperSettingsPanel(self), 0, Qt.AlignTop)
+        self.layout.addWidget(DateSelector(self), 1, Qt.AlignTop)
+        self.layout.addWidget(MainButtons(self), 0, Qt.AlignRight)
+
+
+class LoggerConsole(QGroupBox):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.output = QTextEdit()
+        self.output.setReadOnly(True)
+        self.output.setMinimumHeight(350)
+        self.setObjectName('logger_console')
+        self.setTitle('Logger output')
+        self.setAlignment(Qt.AlignHCenter)
+        self.layout = QVBoxLayout(self)
+        self.setContentsMargins(0, 10, 0, 10)
+        self.setMinimumSize(650, 400)
+        self.layout.addWidget(self.output, 0, Qt.AlignTop)
+
+    def print_output(self, msg: str):
+        timestamp = datetime.now().strftime('[%Y-%m-%d %H:%M:%S]')
+        message = f'{timestamp} {msg}'
+        self.output.append(message)
 
 
 class UpperSettingsPanel(QWidget):
@@ -185,9 +210,10 @@ class DateSelector(QGroupBox):
         to_layout.addWidget(self.to_lbl, 0, Qt.AlignHCenter)
         to_layout.addWidget(self.to_cal, 0, Qt.AlignHCenter)
 
-        # Placing selectors to root layout
         self.layout.addWidget(from_frame, 0, Qt.AlignCenter)
         self.layout.addWidget(to_frame, 0, Qt.AlignCenter)
+
+        self.update_calendars()
 
     def update_calendars(self):
         if self.from_cal.selectedDate():
@@ -266,31 +292,6 @@ class MainButtons(QWidget):
         self.start_btn.clicked.connect(get_main_window().execute_autologging)
 
         layout.addWidget(self.start_btn, 0, Qt.AlignHCenter)
-
-
-# class LoggerWindow(QMainWindow):
-#     def __init__(self, parent, worker):
-#         self.parent = parent
-#         self.worker = worker
-#         self.output = QTextEdit()
-#         super().__init__(self.parent, Qt.Window)
-#         self.worker.log_msg.connect(self.output.append)
-#
-#     def init_ui(self):
-#         # Setting window geometry
-#         self.setContentsMargins(2, 2, 2, 2)
-#         self.setMinimumSize(650, 400)
-#         self.setWindowTitle('Processing requests')
-#         self.setWindowIcon(QIcon('misc/projectavatar.ico'))
-#         self.setWindowModality(Qt.WindowModal)
-#
-#         # Setting root frame
-#         root = QWidget(self, Qt.Widget)
-#         root_layout = QVBoxLayout(root)
-#         root_layout.setContentsMargins(3, 3, 3, 3)
-#
-#         root_layout.addWidget(self.output, 0, Qt.AlignHCenter)
-#         self.setCentralWidget(root)
 
 
 def get_main_window():

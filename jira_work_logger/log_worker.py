@@ -1,16 +1,17 @@
 from datetime import datetime, timedelta
 from typing import Union, Iterable
 
-from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtCore import pyqtSignal, QObject
 from jira import JIRA
 
 from .constants import *
 
 
-class LogWorker:
-    # log_msg = pyqtSignal(str)
+class LogWorker(QObject):
+    msg = pyqtSignal(str)
 
     def __init__(self, settings):
+        super().__init__()
         self.settings = settings
         self._conn = None
         self._loaded_tasks = None
@@ -88,8 +89,9 @@ class LogWorker:
         return work_dates
 
     def execute_autologging(self):
+        self.msg.emit('Auto logging worker started')
+
         # Defining whole list of work dates to be iterated through
-        self.log_msg.emit('Process started')
         work_dates = self.get_work_dates_for_period()
 
         # Processing date by date
