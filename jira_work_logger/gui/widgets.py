@@ -1,9 +1,9 @@
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 
 import yaml
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QIcon
+from PyQt5.QtGui import QIcon, QColor
 from PyQt5.QtWidgets import (QMainWindow, QAction, qApp, QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QSpinBox, QFrame,
                              QPushButton, QFormLayout, QLineEdit, QLabel, QCalendarWidget, QCheckBox, QGridLayout,
                              QTextEdit)
@@ -45,11 +45,14 @@ class MainWindow(QMainWindow):
         self.configurator.hide()
         self.console.show()
         self.setCentralWidget(self.console)
+        qApp.processEvents()
 
-        worker = LogWorker(self.params)
-        worker.msg.connect(self.console.print_output)
-
-        worker.execute_autologging()
+        # Setup worker thread
+        worker = LogWorker(self)
+        worker.msg.connect(self.console.print_msg)
+        worker.warn.connect(self.console.print_warn)
+        worker.err.connect(self.console.print_err)
+        worker.start()
 
     def update_start_button(self):
         self.read_params()
@@ -97,24 +100,74 @@ class LoggerConfigurator(QWidget):
         self.layout.addWidget(MainButtons(self), 0, Qt.AlignRight)
 
 
-class LoggerConsole(QGroupBox):
+class LoggerConsole(QWidget):
     def __init__(self, parent):
         super().__init__(parent)
+        self.setObjectName('logger_console')
+        self.layout = QVBoxLayout(self)
+        self.setContentsMargins(0, 0, 0, 0)
+        self.setMinimumSize(650, 400)
+
+        # Setup output console
+        console = QGroupBox(self)
+        console_layout = QVBoxLayout(console)
+        console.setMinimumHeight(330)
         self.output = QTextEdit()
         self.output.setReadOnly(True)
-        self.output.setMinimumHeight(350)
-        self.setObjectName('logger_console')
-        self.setTitle('Logger output')
-        self.setAlignment(Qt.AlignHCenter)
-        self.layout = QVBoxLayout(self)
-        self.setContentsMargins(0, 10, 0, 10)
-        self.setMinimumSize(650, 400)
-        self.layout.addWidget(self.output, 0, Qt.AlignTop)
+        self.output.setMinimumHeight(320)
+        console_layout.addWidget(self.output, 0, Qt.AlignTop)
 
-    def print_output(self, msg: str):
+        # Setup control buttons
+        controls = QFrame(self, Qt.Widget)
+        controls_layout = QHBoxLayout(controls)
+        controls_layout.setSpacing(5)
+
+        stop_btn = QPushButton('Stop')
+        stop_btn.setFixedWidth(100)
+        stop_btn.clicked.connect(self.stop_logging)
+
+        save_btn = QPushButton('Save to file')
+        save_btn.setFixedWidth(100)
+        save_btn.clicked.connect(self.save_to_file)
+
+        back_btn = QPushButton('Back to setup')
+        back_btn.setFixedWidth(100)
+        back_btn.clicked.connect(self.switch_to_configurator)
+
+        controls_layout.addWidget(stop_btn, 0, Qt.AlignLeft)
+        controls_layout.addWidget(save_btn, 1, Qt.AlignLeft)
+        controls_layout.addWidget(back_btn, 0, Qt.AlignRight)
+
+        # Placing widgets on root layout
+        self.layout.addWidget(console, 0, Qt.AlignTop)
+        self.layout.addWidget(controls, 0, Qt.AlignTop)
+
+    def print_msg(self, msg: str):
+        self.output.setTextColor(QColor(0, 0, 0))
         timestamp = datetime.now().strftime('[%Y-%m-%d %H:%M:%S]')
-        message = f'{timestamp} {msg}'
+        message = f'{timestamp} [L]  {msg}'
         self.output.append(message)
+
+    def print_warn(self, warn: str):
+        self.output.setTextColor(QColor(255, 140, 0))
+        timestamp = datetime.now().strftime('[%Y-%m-%d %H:%M:%S]')
+        message = f'{timestamp} [W]  {warn}'
+        self.output.append(message)
+
+    def print_err(self, err: str):
+        self.output.setTextColor(QColor(178, 34, 34))
+        timestamp = datetime.now().strftime('[%Y-%m-%d %H:%M:%S]')
+        message = f'{timestamp} [E]  {err}'
+        self.output.append(message)
+
+    def stop_logging(self):
+        return
+
+    def save_to_file(self):
+        return
+
+    def switch_to_configurator(self):
+        return
 
 
 class UpperSettingsPanel(QWidget):

@@ -1,18 +1,20 @@
 from datetime import datetime, timedelta
 from typing import Union, Iterable
 
-from PyQt5.QtCore import pyqtSignal, QObject
+from PyQt5.QtCore import pyqtSignal, QThread
 from jira import JIRA
 
 from .constants import *
 
 
-class LogWorker(QObject):
+class LogWorker(QThread):
     msg = pyqtSignal(str)
+    warn = pyqtSignal(str)
+    err = pyqtSignal(str)
 
-    def __init__(self, settings):
-        super().__init__()
-        self.settings = settings
+    def __init__(self, parent=None):
+        super().__init__(parent=parent)
+        self.settings = parent.params
         self._conn = None
         self._loaded_tasks = None
         self._loaded_worklogs = None
@@ -88,22 +90,28 @@ class LogWorker(QObject):
 
         return work_dates
 
-    def execute_autologging(self):
-        self.msg.emit('Auto logging worker started')
+    def run(self):
+        self.msg.emit(f'Auto logging worker started for dates range from {self.settings["from_date"]} to '
+                      f'{self.settings["to_date"]}')
 
         # Defining whole list of work dates to be iterated through
         work_dates = self.get_work_dates_for_period()
+        self.msg.emit(f'{len(work_dates)} working day(s) found')
 
         # Processing date by date
         for _date in work_dates:
+            self.msg.emit(f'Starting to process date {_date}')
             # TODO: Get rid of time hard code
             date = datetime.strptime(f'{_date}T06:00:40-0500', '%Y-%m-%dT%H:%M:%S%z')
             logged_sec = self.calculate_logged_seconds_for_date(str(_date))
             needed_sec = (self.settings['target_hrs'] * 3600) - logged_sec
+            self.msg.emit(f'{logged_sec / 3600} hour(s) currently logged')
 
             if needed_sec <= 0:
-                print(f'{str(_date)}: {round(logged_sec / 3600, 2)} hours already logged')
+                self.msg.emit('No additional time need to be logged')
                 continue
+            else:
+                self.msg.emit(f'{needed_sec / 3600} hour(s) need to be logged')
 
             # Building a list with all available tasks for this date that can produce work log
             # Tasks will have a priority among themselves, so ones with the highest priority will be used first for
@@ -118,8 +126,10 @@ class LogWorker(QObject):
                 'low': self.load_tasks(TASK_REVIEW_STATUS, _date).iterable
             }
 
-            # Removing occurrencies of Med tasks in Low tasks if any
+            # Removing occurrences of Med tasks in Low tasks if any
             ranked_tasks['low'] = [task for task in ranked_tasks['low'] if task not in ranked_tasks['medium']]
+            overall_tasks_found = len(ranked_tasks['high']) + len(ranked_tasks['medium']) + len(ranked_tasks['low'])
+            self.msg.emit(f'Totally {overall_tasks_found} suitable task(s) found for this date')
 
             # Beginning of work logging cycle within High priority tasks
             # In this case we log work for every task if amount of time to be logged won't exceed needed time amount
@@ -128,9 +138,11 @@ class LogWorker(QObject):
                 time_sec = str_to_sec(time_str)
                 if needed_sec - time_sec < 0:
                     self.conn.add_worklog(task, timeSpentSeconds=time_sec - needed_sec, started=date)
+                    self.msg.emit(f'Work logged for task {task} = {time_sec / 3600} hour(s)')
                     needed_sec = 0
                 else:
                     self.conn.add_worklog(task, timeSpentSeconds=time_sec, started=date)
+                    self.msg.emit(f'Work logged for task {task} = {time_sec / 3600} hour(s)')
                     needed_sec -= time_sec
 
             # Beginning of work logging cycle within Medium and Low Priority task
@@ -140,40 +152,46 @@ class LogWorker(QObject):
 
                 for task in ranked_tasks['medium']:
                     self.conn.add_worklog(task.key, timeSpentSeconds=time_per_med, started=date)
+                    self.msg.emit(f'Work logged for task {task.key} = {time_per_med / 3600} hour(s)')
 
                 if time_per_low:
-                    self.conn.add_worklog(ranked_tasks['low'][0], timeSpentSeconds=time_per_low, started=date)
+                    task = ranked_tasks['low'][0]
+                    self.conn.add_worklog(task.key, timeSpentSeconds=time_per_low, started=date)
+                    self.msg.emit(f'Work logged for task {task.key} = {time_per_low / 3600} hour(s)')
 
             elif len(ranked_tasks['medium']) and not ranked_tasks['low']:
                 time_per_med = ((needed_sec / 3600) / len(ranked_tasks['medium'])) * 3600
 
                 for task in ranked_tasks['medium']:
                     self.conn.add_worklog(task.key, timeSpentSeconds=time_per_med, started=date)
+                    self.msg.emit(f'Work logged for task {task.key} = {time_per_med / 3600} hour(s)')
 
             elif not len(ranked_tasks['medium']) and ranked_tasks['low']:
                 time_per_low = ((needed_sec / 3600) % len(ranked_tasks['medium'])) * 3600
 
                 for task in ranked_tasks['low']:
                     self.conn.add_worklog(task.key, timeSpentSeconds=time_per_low, started=date)
+                    self.msg.emit(f'Work logged for task {task.key} = {time_per_low / 3600} hour(s)')
 
             elif not len(ranked_tasks['medium']) and not ranked_tasks['low']:
-                print(f'{_date}: No medium or low priority tasks provided!')
+                self.warn.emit(f'Not enough tasks for sufficient time logging in {_date}!')
 
             # Summarizing results
+            summary_msg = f'Summary for {_date}: Work log'
             currently_logged_sec = self.calculate_logged_seconds_for_date(str(_date))
             diff_sec = (self.settings['target_hrs'] * 3600) - currently_logged_sec
 
             if not diff_sec:
-                print(f'{_date}: Worklog is fully completed with {self.settings["target_hrs"]} hours as required.')
+                self.msg.emit(f'{summary_msg} fully completed with {self.settings["target_hrs"]} hour(s)')
             elif diff_sec > 0:
-                print(f'{_date}: Worklog still require {diff_sec / 3600} hours to be logged!')
+                self.warn.emit(f'{summary_msg} still require {diff_sec / 3600} hour(s) to be logged!')
             elif diff_sec < 0:
-                print(f'{_date}: Worklog has been overlogged by {abs(diff_sec) / 3600} hours!')
+                self.warn.emit(f'{summary_msg} overloaded by {abs(diff_sec) / 3600} hour(s)!')
 
+        self.msg.emit(f'Auto logging worker successfully finished')
         return
 
 
-
 def str_to_sec(time_str: str):
-    if time_str[-1] in 'dhms':
+    if time_str[-1] in 'hms':
         return int(time_str[:-1]) * TimeToSec[time_str[-1]]
