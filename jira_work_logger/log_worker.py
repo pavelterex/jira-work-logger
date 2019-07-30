@@ -12,9 +12,9 @@ class LogWorker(QThread):
     warn = pyqtSignal(str)
     err = pyqtSignal(str)
 
-    def __init__(self, parent=None):
-        super().__init__(parent=parent)
-        self.settings = parent.params
+    def __init__(self, parent, params):
+        super().__init__(parent)
+        self.settings = params
         self._conn = None
         self._loaded_tasks = None
         self._loaded_worklogs = None

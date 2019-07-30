@@ -6,7 +6,7 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon, QColor
 from PyQt5.QtWidgets import (QMainWindow, QAction, qApp, QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QSpinBox, QFrame,
                              QPushButton, QFormLayout, QLineEdit, QLabel, QCalendarWidget, QCheckBox, QGridLayout,
-                             QTextEdit)
+                             QTextEdit, QTabWidget)
 
 from ..constants import *
 from ..log_worker import LogWorker
@@ -16,39 +16,39 @@ class MainWindow(QMainWindow):
     def __init__(self, parent=None):
         super().__init__(parent, Qt.Window)
         self.setObjectName('main_window')
-        self.menubar = self.menuBar()
         self.params = PARAMS
         self.load_config()
-        self.configurator = LoggerConfigurator(self)
-        self.console = LoggerConsole(self)
+        self.menubar = self.menuBar()
+        self.root = QTabWidget(self)
+        self.configurator = LoggerConfigurator(self.root)
+        self.console = LoggerConsole(self.root)
         self.init_ui()
         self.update_start_button()
 
     def init_ui(self):
         # Setting window geometry
-        self.setContentsMargins(3, 3, 3, 3)
         self.setWindowTitle('JIRA work logger')
         self.setWindowIcon(QIcon('gui/misc/clock-icon.png'))
 
         # Setting menu bar
-        app_menu = self.menubar.addMenu('App')  # File menu
+        app_menu = self.menubar.addMenu('App')
         exit_action = QAction('Exit', self)
         exit_action.setShortcut('Ctrl+Q')
         exit_action.triggered.connect(qApp.quit)
         app_menu.addAction(exit_action)
 
-        self.setCentralWidget(self.configurator)
-        self.console.hide()
+        # Setting root frame
+        self.root.addTab(self.configurator, 'Logger Setup')
+        self.root.addTab(self.console, 'Logger Output')
+
+        self.setCentralWidget(self.root)
 
     def execute_autologging(self):
         self.read_params()
-        self.configurator.hide()
-        self.console.show()
-        self.setCentralWidget(self.console)
-        qApp.processEvents()
+        self.root.setCurrentIndex(1)
 
         # Setup worker thread
-        worker = LogWorker(self)
+        worker = LogWorker(self, self.params)
         worker.msg.connect(self.console.print_msg)
         worker.warn.connect(self.console.print_warn)
         worker.err.connect(self.console.print_err)
@@ -96,51 +96,19 @@ class LoggerConfigurator(QWidget):
         self.setObjectName('logger_configurator')
         self.layout = QVBoxLayout(self)
         self.layout.addWidget(UpperSettingsPanel(self), 0, Qt.AlignTop)
-        self.layout.addWidget(DateSelector(self), 1, Qt.AlignTop)
+        self.layout.addWidget(DateSelector(self), 0, Qt.AlignTop)
         self.layout.addWidget(MainButtons(self), 0, Qt.AlignRight)
 
 
 class LoggerConsole(QWidget):
     def __init__(self, parent):
-        super().__init__(parent)
+        super().__init__(parent, Qt.Widget)
         self.setObjectName('logger_console')
-        self.layout = QVBoxLayout(self)
-        self.setContentsMargins(0, 0, 0, 0)
-        self.setMinimumSize(650, 400)
+        self.layout = QGridLayout(self)
 
-        # Setup output console
-        console = QGroupBox(self)
-        console_layout = QVBoxLayout(console)
-        console.setMinimumHeight(330)
-        self.output = QTextEdit()
+        self.output = QTextEdit(self)
         self.output.setReadOnly(True)
-        self.output.setMinimumHeight(320)
-        console_layout.addWidget(self.output, 0, Qt.AlignTop)
-
-        # Setup control buttons
-        controls = QFrame(self, Qt.Widget)
-        controls_layout = QHBoxLayout(controls)
-        controls_layout.setSpacing(5)
-
-        stop_btn = QPushButton('Stop')
-        stop_btn.setFixedWidth(100)
-        stop_btn.clicked.connect(self.stop_logging)
-
-        save_btn = QPushButton('Save to file')
-        save_btn.setFixedWidth(100)
-        save_btn.clicked.connect(self.save_to_file)
-
-        back_btn = QPushButton('Back to setup')
-        back_btn.setFixedWidth(100)
-        back_btn.clicked.connect(self.switch_to_configurator)
-
-        controls_layout.addWidget(stop_btn, 0, Qt.AlignLeft)
-        controls_layout.addWidget(save_btn, 1, Qt.AlignLeft)
-        controls_layout.addWidget(back_btn, 0, Qt.AlignRight)
-
-        # Placing widgets on root layout
-        self.layout.addWidget(console, 0, Qt.AlignTop)
-        self.layout.addWidget(controls, 0, Qt.AlignTop)
+        self.layout.addWidget(self.output, 0, 0)
 
     def print_msg(self, msg: str):
         self.output.setTextColor(QColor(0, 0, 0))
@@ -159,15 +127,6 @@ class LoggerConsole(QWidget):
         timestamp = datetime.now().strftime('[%Y-%m-%d %H:%M:%S]')
         message = f'{timestamp} [E]  {err}'
         self.output.append(message)
-
-    def stop_logging(self):
-        return
-
-    def save_to_file(self):
-        return
-
-    def switch_to_configurator(self):
-        return
 
 
 class UpperSettingsPanel(QWidget):
