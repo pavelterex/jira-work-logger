@@ -1,7 +1,12 @@
-jira_host: https://jira.solarwinds.com
-jira_user: 
-jira_pass: 
+# Base URL of JIRA server to connect to, like "https://jira.server.com"
+jira_host:
 
+# JIRA user credentials
+jira_user:
+jira_pass:
+
+# Tasks that will be added to each working day, like
+#  BR-408: 30m
+#  BR-7630: 2h
 daily_tasks:
-  BR-408: 30m
-  BR-7630: 2h
+

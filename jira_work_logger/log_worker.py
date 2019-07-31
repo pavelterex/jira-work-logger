@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from typing import Union, Iterable
 
 from PyQt5.QtCore import pyqtSignal, QObject
-from jira import JIRA
+from jira import JIRA, JIRAError
 
 from .constants import *
 
@@ -15,16 +15,10 @@ class LogWorker(QObject):
     def __init__(self, params):
         super().__init__()
         self.settings = params
-        self._conn = None
+        self.conn = None
         self._loaded_tasks = None
         self._loaded_worklogs = None
         self._work_dates = None
-
-    @property
-    def conn(self):
-        if not self._conn or not self._conn.myself():
-            self._conn = self.establish_connection()
-        return self._conn
 
     @property
     def loaded_tasks(self):
@@ -47,8 +41,11 @@ class LogWorker(QObject):
                         basic_auth=(self.settings['jira_user'], self.settings['jira_pass']))
             self.msg.emit('Connection established successfully')
             return conn
+        except JIRAError as exn:
+            self.err.emit(f'Connection to JIRA server could not be established! JiraError HTTP {exn.status_code}')
+            return None
         except Exception as exn:
-            self.err.emit(f'Connection to specified JIRA server could not be established!\n{str(exn)}')
+            self.err.emit(f'Connection to JIRA server could not be established! {str(exn)}')
             return None
 
     def load_tasks(self, status: Union[str, Iterable] = '', date: Union[str, Iterable] = ''):
@@ -94,6 +91,13 @@ class LogWorker(QObject):
     def execute_logging(self):
         self.msg.emit(f'Auto logging worker started for dates range from {self.settings["from_date"]} to '
                       f'{self.settings["to_date"]}')
+
+        # Establish connection to JIRA server
+        self.conn = self.establish_connection()
+
+        if not self.conn:
+            self.thread().quit()
+            return
 
         # Defining whole list of work dates to be iterated through
         work_dates = self.get_work_dates_for_period()

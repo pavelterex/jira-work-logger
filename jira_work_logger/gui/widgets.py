@@ -42,14 +42,14 @@ class MainWindow(QMainWindow):
         # Setting root frame
         self.root.addTab(self.configurator, 'Logger Setup')
         self.root.addTab(self.console, 'Logger Output')
-
         self.setCentralWidget(self.root)
 
     def setup_worker_thread(self):
         self.worker = LogWorker(self.params)
-        self.worker_thread = QThread(self.console)
+        self.worker_thread = QThread()
         self.worker.moveToThread(self.worker_thread)
 
+        # Assign signals to slots
         self.worker.msg.connect(self.console.print_msg)
         self.worker.warn.connect(self.console.print_warn)
         self.worker.err.connect(self.console.print_err)
@@ -57,6 +57,7 @@ class MainWindow(QMainWindow):
         self.worker_thread.finished.connect(self.stop_worker_thread)
 
     def execute_autologging(self):
+        get_main_window().findChild(QWidget, 'main_buttons', Qt.FindChildrenRecursively).start_btn.setDisabled(True)
         self.read_params()
         self.setup_worker_thread()
         self.root.setCurrentIndex(1)
@@ -64,7 +65,10 @@ class MainWindow(QMainWindow):
         self.worker_thread.start()
 
     def stop_worker_thread(self):
+        self.console.print_msg('Worker thread has been stopped')
         self.worker_thread.deleteLater()
+        get_main_window().findChild(QWidget, 'main_buttons', Qt.FindChildrenRecursively).start_btn.setEnabled(True)
+        qApp.processEvents()
 
     def update_start_button(self):
         self.read_params()
@@ -327,9 +331,9 @@ def get_main_window():
 
 def tasks_string_to_dict(tasks_string: str) -> dict:
     """Convert input string like 'BR-3452:5 BR-226:8' to common dict"""
-    return {k: v for k, v in [x.split(':') for x in tasks_string.split(' ') if x]}
+    return {k: v for k, v in [x.split(':') for x in tasks_string.split(' ') if x]} if tasks_string else {}
 
 
 def tasks_dict_to_string(tasks_dict: dict) -> str:
     """Convert input dict to string of daily tasks"""
-    return ' '.join([f'{k}:{v}' for k, v in list(tasks_dict.items())])
+    return ' '.join([f'{k}:{v}' for k, v in list(tasks_dict.items())]) if tasks_dict else ''
