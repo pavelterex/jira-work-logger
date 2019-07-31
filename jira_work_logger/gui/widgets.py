@@ -2,7 +2,7 @@ from datetime import datetime
 from pathlib import Path
 
 import yaml
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QThread
 from PyQt5.QtGui import QIcon, QColor
 from PyQt5.QtWidgets import (QMainWindow, QAction, qApp, QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QSpinBox, QFrame,
                              QPushButton, QFormLayout, QLineEdit, QLabel, QCalendarWidget, QCheckBox, QGridLayout,
@@ -22,6 +22,8 @@ class MainWindow(QMainWindow):
         self.root = QTabWidget(self)
         self.configurator = LoggerConfigurator(self.root)
         self.console = LoggerConsole(self.root)
+        self.worker = None
+        self.worker_thread = None
         self.init_ui()
         self.update_start_button()
 
@@ -31,7 +33,7 @@ class MainWindow(QMainWindow):
         self.setWindowIcon(QIcon('gui/misc/clock-icon.png'))
 
         # Setting menu bar
-        app_menu = self.menubar.addMenu('App')
+        app_menu = self.menubar.addMenu('Help')
         exit_action = QAction('Exit', self)
         exit_action.setShortcut('Ctrl+Q')
         exit_action.triggered.connect(qApp.quit)
@@ -43,16 +45,26 @@ class MainWindow(QMainWindow):
 
         self.setCentralWidget(self.root)
 
+    def setup_worker_thread(self):
+        self.worker = LogWorker(self.params)
+        self.worker_thread = QThread(self.console)
+        self.worker.moveToThread(self.worker_thread)
+
+        self.worker.msg.connect(self.console.print_msg)
+        self.worker.warn.connect(self.console.print_warn)
+        self.worker.err.connect(self.console.print_err)
+        self.worker_thread.started.connect(self.worker.execute_logging)
+        self.worker_thread.finished.connect(self.stop_worker_thread)
+
     def execute_autologging(self):
         self.read_params()
+        self.setup_worker_thread()
         self.root.setCurrentIndex(1)
+        qApp.processEvents()
+        self.worker_thread.start()
 
-        # Setup worker thread
-        worker = LogWorker(self, self.params)
-        worker.msg.connect(self.console.print_msg)
-        worker.warn.connect(self.console.print_warn)
-        worker.err.connect(self.console.print_err)
-        worker.start()
+    def stop_worker_thread(self):
+        self.worker_thread.deleteLater()
 
     def update_start_button(self):
         self.read_params()

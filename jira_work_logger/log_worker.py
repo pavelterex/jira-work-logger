@@ -1,19 +1,19 @@
 from datetime import datetime, timedelta
 from typing import Union, Iterable
 
-from PyQt5.QtCore import pyqtSignal, QThread
+from PyQt5.QtCore import pyqtSignal, QObject
 from jira import JIRA
 
 from .constants import *
 
 
-class LogWorker(QThread):
+class LogWorker(QObject):
     msg = pyqtSignal(str)
     warn = pyqtSignal(str)
     err = pyqtSignal(str)
 
-    def __init__(self, parent, params):
-        super().__init__(parent)
+    def __init__(self, params):
+        super().__init__()
         self.settings = params
         self._conn = None
         self._loaded_tasks = None
@@ -22,9 +22,8 @@ class LogWorker(QThread):
 
     @property
     def conn(self):
-        if not self._conn:
+        if not self._conn or not self._conn.myself():
             self._conn = self.establish_connection()
-
         return self._conn
 
     @property
@@ -43,12 +42,14 @@ class LogWorker(QThread):
 
     def establish_connection(self):
         try:
-            conn = JIRA(server=self.settings['jira_host'],
+            self.msg.emit('Establishing connection to JIRA server...')
+            conn = JIRA(server=self.settings['jira_host'], validate=True, max_retries=0,
                         basic_auth=(self.settings['jira_user'], self.settings['jira_pass']))
+            self.msg.emit('Connection established successfully')
+            return conn
         except Exception as exn:
-            print(exn)
-            return
-        return conn
+            self.err.emit(f'Connection to specified JIRA server could not be established!\n{str(exn)}')
+            return None
 
     def load_tasks(self, status: Union[str, Iterable] = '', date: Union[str, Iterable] = ''):
         """Load tasks that can be filtered by statuses and(or) dates"""
@@ -90,7 +91,7 @@ class LogWorker(QThread):
 
         return work_dates
 
-    def run(self):
+    def execute_logging(self):
         self.msg.emit(f'Auto logging worker started for dates range from {self.settings["from_date"]} to '
                       f'{self.settings["to_date"]}')
 
@@ -189,7 +190,7 @@ class LogWorker(QThread):
                 self.warn.emit(f'{summary_msg} overloaded by {abs(diff_sec) / 3600} hour(s)!')
 
         self.msg.emit(f'Auto logging worker successfully finished')
-        return
+        self.thread().quit()
 
 
 def str_to_sec(time_str: str):
