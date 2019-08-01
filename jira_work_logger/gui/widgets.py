@@ -4,9 +4,9 @@ from pathlib import Path
 import yaml
 from PyQt5.QtCore import Qt, QThread, QRegExp
 from PyQt5.QtGui import QIcon, QColor, QRegExpValidator
-from PyQt5.QtWidgets import (QMainWindow, QAction, qApp, QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QSpinBox, QFrame,
+from PyQt5.QtWidgets import (QMainWindow, QAction, qApp, QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QDoubleSpinBox,
                              QPushButton, QFormLayout, QLineEdit, QLabel, QCalendarWidget, QCheckBox, QGridLayout,
-                             QTextEdit, QTabWidget)
+                             QTextEdit, QTabWidget, QFrame)
 
 from jira_work_logger.constants import *
 from jira_work_logger.log_worker import LogWorker
@@ -92,6 +92,8 @@ class MainWindow(QMainWindow):
         self.params['work_days'] = days_widget.weekdays
         self.params['target_hrs'] = days_widget.target_hrs.value()
         self.params['daily_tasks'] = tasks_string_to_dict(days_widget.daily_tasks.text())
+        self.params['tasks_comment'] = days_widget.tasks_comment.text()
+        self.params['daily_only'] = days_widget.daily_only.isChecked()
 
         # Date settings
         date_widget = self.findChild(QWidget, 'dates_selector', Qt.FindChildrenRecursively)
@@ -146,7 +148,6 @@ class LoggerConsole(QWidget):
 
 
 class UpperSettingsPanel(QWidget):
-    """Placeholder Frame for various settings widgets"""
     def __init__(self, parent):
         super().__init__(parent, Qt.Widget)
         self.parent = parent
@@ -156,8 +157,9 @@ class UpperSettingsPanel(QWidget):
         layout.setSpacing(3)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        layout.addWidget(JiraSettings(self), 0, 0)
-        layout.addWidget(DaysConfigurator(self), 0, 1)
+        layout.addWidget(JiraSettings(self), 0, 0, 1, 1)
+        layout.addWidget(DaysConfigurator(self), 0, 1, 2, 1)
+        layout.addWidget(TasksFilterSettings(self), 1, 0, 1, 1)
 
 
 class JiraSettings(QGroupBox):
@@ -165,7 +167,7 @@ class JiraSettings(QGroupBox):
         super().__init__(parent)
         self.parent = parent
         self.setObjectName('jira_settings')
-        self.setTitle('JIRA settings')
+        self.setTitle('JIRA connection settings')
         self.setAlignment(Qt.AlignHCenter)
 
         layout = QFormLayout(self)
@@ -189,6 +191,31 @@ class JiraSettings(QGroupBox):
         self.host_ln.textChanged.connect(get_main_window().update_start_button)
         self.user_ln.textChanged.connect(get_main_window().update_start_button)
         self.pass_ln.textChanged.connect(get_main_window().update_start_button)
+
+
+class TasksFilterSettings(QGroupBox):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.parent = parent
+        self.setObjectName('filter_settings')
+        self.setTitle('JIRA tasks filter settings')
+        self.setAlignment(Qt.AlignHCenter)
+
+        layout = QGridLayout(self)
+        layout.setSpacing(3)
+        layout.setContentsMargins(5, 5, 5, 5)
+
+        self.is_assignee = QCheckBox()
+        self.is_validator = QCheckBox()
+        self.is_author = QCheckBox()
+
+        self.is_assignee.setText('user is Assignee')
+        self.is_validator.setText('user is Validator')
+        self.is_author.setText('user is Author')
+
+        layout.addWidget(self.is_assignee, 1, 0)
+        layout.addWidget(self.is_validator, 2, 0)
+        layout.addWidget(self.is_author, 3, 0)
 
 
 class DateSelector(QGroupBox):
@@ -285,23 +312,49 @@ class DaysConfigurator(QGroupBox):
         misc_layout.setSpacing(5)
         misc_layout.setContentsMargins(0, 0, 0, 0)
 
-        self.target_hrs = QSpinBox()
+        # Process daily tasks only control
+        self.daily_only = QCheckBox()
+        self.daily_only.setChecked(get_main_window().params['daily_only'])
+        self.daily_only.setToolTip('If checked only Daily Tasks will be processed and logged\n'
+                                   'Still they won\'t exceed target hours per day')
+
+        # Target hours per day
+        self.target_hrs = QDoubleSpinBox()
+        self.target_hrs.setSingleStep(0.1)
+        self.target_hrs.setDecimals(1)
+        self.target_hrs.setRange(0, 24)
+        self.target_hrs.setToolTip('Amount of working hours that logger will\nattempt to fill for each day.')
         self.target_hrs.setFixedWidth(50)
         self.target_hrs.setRange(1, 24)
         self.target_hrs.setValue(8)
 
+        # Daily tasks
+        tasks_frame = QFrame(self, Qt.Widget)
+        tasks_layout = QFormLayout(tasks_frame)
+        tasks_layout.setSpacing(5)
+        tasks_layout.setContentsMargins(0, 0, 0, 0)
         self.daily_tasks = QLineEdit()
         regex = QRegExp('^[A-Z]+-[0-9]+:[0-9]+[smh]( [A-Z]+-[0-9]+:[0-9]+[smh])*$')
         validator = QRegExpValidator(regex)
         self.daily_tasks.setValidator(validator)
         self.daily_tasks.textChanged.connect(self.validate_input)
-
-        misc_layout.addRow('Target working hours per day:', self.target_hrs)
-        misc_layout.addRow('Daily tasks (task:time task:time)', self.daily_tasks)
         self.daily_tasks.setText(tasks_dict_to_string(get_main_window().params['daily_tasks']))
+        self.daily_tasks.setToolTip('List of daily task:time that will be\nexplicitly logged for each day.\n'
+                                    'Example: "BR-222:30m BR-555:1h"')
+
+        # Tasks comment
+        self.tasks_comment = QLineEdit()
+        self.tasks_comment.setToolTip('Comment that will be added for every daily task')
+        self.tasks_comment.setText(get_main_window().params['tasks_comment'])
+
+        tasks_layout.addRow('Daily tasks', self.daily_tasks)
+        tasks_layout.addRow('Comment', self.tasks_comment)
+        misc_layout.addRow('Process Daily Tasks only', self.daily_only)
+        misc_layout.addRow('Target working hours per day:', self.target_hrs)
 
         # Placing sub-widgets to root layout
         self.layout.addWidget(week_frame, 0, Qt.AlignTop)
+        self.layout.addWidget(tasks_frame, 0, Qt.AlignTop)
         self.layout.addWidget(misc_frame, 0, Qt.AlignTop)
 
     def update_weekdays(self):

@@ -137,18 +137,26 @@ class LogWorker(QObject):
             self.msg.emit(f'Totally {overall_tasks_found} suitable task(s) found for this date')
 
             # Beginning of work logging cycle within High priority tasks
-            # In this case we log work for every task if amount of time to be logged won't exceed needed time amount
+            tasks_comment = self.settings['tasks_comment'] or ''
             while ranked_tasks['high'] and needed_sec:
                 task, time_str = ranked_tasks['high'].pop()
                 time_sec = str_to_sec(time_str)
                 if needed_sec - time_sec < 0:
-                    self.conn.add_worklog(task, timeSpentSeconds=time_sec - needed_sec, started=date)
+                    self.conn.add_worklog(task, timeSpentSeconds=time_sec - needed_sec, started=date,
+                                          comment=tasks_comment)
                     self.msg.emit(f'Work logged for task {task} = {time_sec / 3600} hour(s)')
                     needed_sec = 0
                 else:
-                    self.conn.add_worklog(task, timeSpentSeconds=time_sec, started=date)
+                    self.conn.add_worklog(task, timeSpentSeconds=time_sec, started=date, comment=tasks_comment)
                     self.msg.emit(f'Work logged for task {task} = {time_sec / 3600} hour(s)')
                     needed_sec -= time_sec
+
+            # Process Daily Tasks Only option
+            if self.settings['daily_only']:
+                self.msg.emit('Daily Tasks processed. Exiting.')
+                self.msg.emit('Auto logging worker successfully finished')
+                self.thread().quit()
+                return
 
             # Beginning of work logging cycle within Medium and Low Priority task
             if len(ranked_tasks['medium']) and ranked_tasks['low']:

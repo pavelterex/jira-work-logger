@@ -16,7 +16,9 @@ PARAMS = {
     'jira_pass': '',
     'work_days': {},
     'target_hrs': '',
+    'daily_only': False,
     'daily_tasks': {},
+    'tasks_comment': '',
     'from_date': '',
     'to_date': ''
 }
