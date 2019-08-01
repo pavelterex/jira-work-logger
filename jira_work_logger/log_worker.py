@@ -4,7 +4,7 @@ from typing import Union, Iterable
 from PyQt5.QtCore import pyqtSignal, QObject
 from jira import JIRA, JIRAError
 
-from .constants import *
+from jira_work_logger.constants import *
 
 
 class LogWorker(QObject):

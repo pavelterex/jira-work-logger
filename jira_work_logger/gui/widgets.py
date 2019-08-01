@@ -2,14 +2,14 @@ from datetime import datetime
 from pathlib import Path
 
 import yaml
-from PyQt5.QtCore import Qt, QThread
-from PyQt5.QtGui import QIcon, QColor
+from PyQt5.QtCore import Qt, QThread, QRegExp
+from PyQt5.QtGui import QIcon, QColor, QRegExpValidator
 from PyQt5.QtWidgets import (QMainWindow, QAction, qApp, QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QSpinBox, QFrame,
                              QPushButton, QFormLayout, QLineEdit, QLabel, QCalendarWidget, QCheckBox, QGridLayout,
                              QTextEdit, QTabWidget)
 
-from ..constants import *
-from ..log_worker import LogWorker
+from jira_work_logger.constants import *
+from jira_work_logger.log_worker import LogWorker
 
 
 class MainWindow(QMainWindow):
@@ -30,7 +30,7 @@ class MainWindow(QMainWindow):
     def init_ui(self):
         # Setting window geometry
         self.setWindowTitle('JIRA work logger')
-        self.setWindowIcon(QIcon('gui/misc/clock-icon.png'))
+        self.setWindowIcon(QIcon('gui/misc/clock-icon.ico'))
 
         # Setting menu bar
         app_menu = self.menubar.addMenu('Help')
@@ -291,6 +291,10 @@ class DaysConfigurator(QGroupBox):
         self.target_hrs.setValue(8)
 
         self.daily_tasks = QLineEdit()
+        regex = QRegExp('^[A-Z]+-[0-9]+:[0-9]+[smh]( [A-Z]+-[0-9]+:[0-9]+[smh])*$')
+        validator = QRegExpValidator(regex)
+        self.daily_tasks.setValidator(validator)
+        self.daily_tasks.textChanged.connect(self.validate_input)
 
         misc_layout.addRow('Target working hours per day:', self.target_hrs)
         misc_layout.addRow('Daily tasks (task:time task:time)', self.daily_tasks)
@@ -304,6 +308,20 @@ class DaysConfigurator(QGroupBox):
         for switch in self.weekday_switches:
             self.weekdays[switch.text()] = switch.isChecked()
 
+    def validate_input(self, *args, **kwargs):
+        sender = self.sender()
+        if not sender.text():
+            sender.setStyleSheet('QLineEdit {background-color: "white"}')
+            return
+
+        validator = sender.validator()
+        state = validator.validate(sender.text(), 0)[0]
+        if state == validator.Acceptable:
+            color = '#c4df9b'  # green
+        else:
+            color = '#fff79a'  # yellow
+        sender.setStyleSheet('QLineEdit { background-color: %s }' % color)
+
 
 class MainButtons(QWidget):
     def __init__(self, parent):
@@ -313,7 +331,7 @@ class MainButtons(QWidget):
 
         layout = QHBoxLayout(self)
         layout.setSpacing(3)
-        layout.setContentsMargins(3, 3, 3, 3)
+        layout.setContentsMargins(0, 5, 0, 0)
 
         self.start_btn = QPushButton('Start')
         self.start_btn.setFixedWidth(100)
@@ -329,9 +347,13 @@ def get_main_window():
     return main
 
 
-def tasks_string_to_dict(tasks_string: str) -> dict:
+def tasks_string_to_dict(tasks_string: str):
     """Convert input string like 'BR-3452:5 BR-226:8' to common dict"""
-    return {k: v for k, v in [x.split(':') for x in tasks_string.split(' ') if x]} if tasks_string else {}
+    try:
+        result = {k: v for k, v in [x.split(':') for x in tasks_string.split(' ') if x]} if tasks_string else {}
+        return result
+    except ValueError:
+        return
 
 
 def tasks_dict_to_string(tasks_dict: dict) -> str:

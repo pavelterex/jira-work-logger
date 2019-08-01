@@ -1,2 +1,5 @@
-PyQt5
 jira
+pyinstaller
+PyQt5==5.12.1
+pypiwin32
+PyYAML
