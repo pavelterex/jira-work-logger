@@ -2,7 +2,7 @@ from datetime import datetime
 from pathlib import Path
 
 import yaml
-from PyQt5.QtCore import Qt, QThread, QRegExp
+from PyQt5.QtCore import Qt, QThread, QRegExp, QDate
 from PyQt5.QtGui import QIcon, QColor, QRegExpValidator
 from PyQt5.QtWidgets import (QMainWindow, QAction, qApp, QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QDoubleSpinBox,
                              QPushButton, QFormLayout, QLineEdit, QLabel, QCalendarWidget, QCheckBox, QGridLayout,
@@ -260,6 +260,7 @@ class DateSelector(QGroupBox):
         self.from_cal = QCalendarWidget(from_frame)
         self.from_cal.setGridVisible(True)
         self.from_cal.setFirstDayOfWeek(Qt.DayOfWeek(1))
+        self.from_cal.setMaximumDate(QDate().currentDate())
         self.from_cal.clicked.connect(self.update_calendars)
         self.from_cal.clicked.connect(get_main_window().update_start_button)
 
@@ -277,6 +278,7 @@ class DateSelector(QGroupBox):
         self.to_cal = QCalendarWidget(to_frame)
         self.to_cal.setGridVisible(True)
         self.to_cal.setFirstDayOfWeek(Qt.DayOfWeek(1))
+        self.to_cal.setMaximumDate(QDate().currentDate())
         self.to_cal.clicked.connect(self.update_calendars)
         self.to_cal.clicked.connect(get_main_window().update_start_button)
         self.to_cal.setDisabled(True)
@@ -292,7 +294,9 @@ class DateSelector(QGroupBox):
     def update_calendars(self):
         if self.from_cal.selectedDate():
             self.to_cal.setEnabled(True)
+            self.from_cal.setMaximumDate(QDate().currentDate())
             self.to_cal.setMinimumDate(self.from_cal.selectedDate())
+            self.to_cal.setMaximumDate(QDate().currentDate())
             self.from_lbl.setText(self.from_cal.selectedDate().toString(Qt.ISODate))
 
         if self.to_cal.selectedDate():
