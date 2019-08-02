@@ -75,17 +75,25 @@ class MainWindow(QMainWindow):
         start_btn = self.findChild(QWidget, 'main_buttons', Qt.FindChildrenRecursively).start_btn
 
         if not [param for param in MANDATORY_PARAMS if not self.params[param]]:
-            start_btn.setEnabled(True)
-            return
+            if True in list(self.params['tasks_filter'].values()):
+                start_btn.setEnabled(True)
+                return
 
         start_btn.setDisabled(True)
 
     def read_params(self):
+        """Reading params from widgets across Configurator"""
         # JIRA settings
         jira_widget = self.findChild(QWidget, 'jira_settings', Qt.FindChildrenRecursively)
         self.params['jira_host'] = jira_widget.host_ln.text()
         self.params['jira_user'] = jira_widget.user_ln.text()
         self.params['jira_pass'] = jira_widget.pass_ln.text()
+
+        # Tasks filter settings
+        tasks_filter_widget = self.findChild(QWidget, 'tasks_filter', Qt.FindChildrenRecursively)
+        self.params['tasks_filter']['user_assignee'] = tasks_filter_widget.is_assignee.isChecked()
+        self.params['tasks_filter']['user_validator'] = tasks_filter_widget.is_validator.isChecked()
+        self.params['tasks_filter']['user_creator'] = tasks_filter_widget.is_creator.isChecked()
 
         # Working days settings
         days_widget = self.findChild(QWidget, 'days_config', Qt.FindChildrenRecursively)
@@ -94,6 +102,7 @@ class MainWindow(QMainWindow):
         self.params['daily_tasks'] = tasks_string_to_dict(days_widget.daily_tasks.text())
         self.params['tasks_comment'] = days_widget.tasks_comment.text()
         self.params['daily_only'] = days_widget.daily_only.isChecked()
+        self.params['ignore_tasks'] = tasks_string_to_list(days_widget.ignore_tasks.text())
 
         # Date settings
         date_widget = self.findChild(QWidget, 'dates_selector', Qt.FindChildrenRecursively)
@@ -104,7 +113,7 @@ class MainWindow(QMainWindow):
         config_path = Path(CONFIG_FILE)
 
         if config_path.exists():
-            self.params.update(yaml.load(config_path.read_text(), Loader=yaml.BaseLoader))
+            self.params.update(yaml.load(config_path.read_text(), Loader=yaml.FullLoader))
             return
 
 
@@ -184,9 +193,10 @@ class JiraSettings(QGroupBox):
         layout.addRow('User:', self.user_ln)
         layout.addRow('Pass:', self.pass_ln)
 
-        self.host_ln.setText(get_main_window().params['jira_host'])
-        self.user_ln.setText(get_main_window().params['jira_user'])
-        self.pass_ln.setText(get_main_window().params['jira_pass'])
+        main_params = get_main_window().params
+        self.host_ln.setText(main_params['jira_host'])
+        self.user_ln.setText(main_params['jira_user'])
+        self.pass_ln.setText(main_params['jira_pass'])
 
         self.host_ln.textChanged.connect(get_main_window().update_start_button)
         self.user_ln.textChanged.connect(get_main_window().update_start_button)
@@ -197,7 +207,7 @@ class TasksFilterSettings(QGroupBox):
     def __init__(self, parent):
         super().__init__(parent)
         self.parent = parent
-        self.setObjectName('filter_settings')
+        self.setObjectName('tasks_filter')
         self.setTitle('JIRA tasks filter settings')
         self.setAlignment(Qt.AlignHCenter)
 
@@ -207,15 +217,24 @@ class TasksFilterSettings(QGroupBox):
 
         self.is_assignee = QCheckBox()
         self.is_validator = QCheckBox()
-        self.is_author = QCheckBox()
+        self.is_creator = QCheckBox()
 
         self.is_assignee.setText('user is Assignee')
         self.is_validator.setText('user is Validator')
-        self.is_author.setText('user is Author')
+        self.is_creator.setText('user is Creator')
 
         layout.addWidget(self.is_assignee, 1, 0)
         layout.addWidget(self.is_validator, 2, 0)
-        layout.addWidget(self.is_author, 3, 0)
+        layout.addWidget(self.is_creator, 3, 0)
+
+        main_params = get_main_window().params
+        self.is_assignee.setChecked(main_params['tasks_filter']['user_assignee'])
+        self.is_validator.setChecked(main_params['tasks_filter']['user_validator'])
+        self.is_creator.setChecked(main_params['tasks_filter']['user_creator'])
+
+        self.is_assignee.clicked.connect(get_main_window().update_start_button)
+        self.is_validator.clicked.connect(get_main_window().update_start_button)
+        self.is_creator.clicked.connect(get_main_window().update_start_button)
 
 
 class DateSelector(QGroupBox):
@@ -334,7 +353,7 @@ class DaysConfigurator(QGroupBox):
         tasks_layout.setSpacing(5)
         tasks_layout.setContentsMargins(0, 0, 0, 0)
         self.daily_tasks = QLineEdit()
-        regex = QRegExp('^[A-Z]+-[0-9]+:[0-9]+[smh]( [A-Z]+-[0-9]+:[0-9]+[smh])*$')
+        regex = QRegExp('^[A-Z]+-[0-9]+:[0-9]+[smh]( [A-Z]+-[0-9]+:[0-9]+[smh])*$')  # BR-408:30m BR-7630:2h BR-2345:1h
         validator = QRegExpValidator(regex)
         self.daily_tasks.setValidator(validator)
         self.daily_tasks.textChanged.connect(self.validate_input)
@@ -347,8 +366,18 @@ class DaysConfigurator(QGroupBox):
         self.tasks_comment.setToolTip('Comment that will be added for every daily task')
         self.tasks_comment.setText(get_main_window().params['tasks_comment'])
 
+        # Tasks to be ignored
+        self.ignore_tasks = QLineEdit()
+        regex = QRegExp('^[A-Z]+-[0-9]+( [A-Z]+-[0-9]+)*$')  # BR-408 BR-234 BR-7758
+        validator = QRegExpValidator(regex)
+        self.ignore_tasks.setValidator(validator)
+        self.ignore_tasks.textChanged.connect(self.validate_input)
+        self.ignore_tasks.setText(tasks_list_to_string(get_main_window().params['ignore_tasks']))
+        self.ignore_tasks.setToolTip('List of tasks to be ignored during processing.\nExample: "BR-555 BR-777"')
+
         tasks_layout.addRow('Daily tasks', self.daily_tasks)
         tasks_layout.addRow('Comment', self.tasks_comment)
+        tasks_layout.addRow('Ignore tasks', self.ignore_tasks)
         misc_layout.addRow('Process Daily Tasks only', self.daily_only)
         misc_layout.addRow('Target working hours per day:', self.target_hrs)
 
@@ -410,5 +439,12 @@ def tasks_string_to_dict(tasks_string: str):
 
 
 def tasks_dict_to_string(tasks_dict: dict) -> str:
-    """Convert input dict to string of daily tasks"""
     return ' '.join([f'{k}:{v}' for k, v in list(tasks_dict.items())]) if tasks_dict else ''
+
+
+def tasks_string_to_list(tasks_string: str) -> list:
+    return [task for task in tasks_string.split(' ') if task] if tasks_string else []
+
+
+def tasks_list_to_string(tasks_list: list) -> str:
+    return ' '.join(tasks_list) if tasks_list else ''

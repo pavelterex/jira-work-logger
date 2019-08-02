@@ -2,6 +2,11 @@ jira_host:
 jira_user:
 jira_pass:
 
-daily_tasks:
+tasks_filter:
+  user_assignee: True
+  user_validator: False
+  user_creator: False
 
+daily_tasks: # dict
 tasks_comment:
+ignore_tasks: # list

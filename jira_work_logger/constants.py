@@ -14,11 +14,13 @@ PARAMS = {
     'jira_host': '',
     'jira_user': '',
     'jira_pass': '',
+    'tasks_filter': {},
     'work_days': {},
     'target_hrs': '',
     'daily_only': False,
     'daily_tasks': {},
     'tasks_comment': '',
+    'ignore_tasks': [],
     'from_date': '',
     'to_date': ''
 }

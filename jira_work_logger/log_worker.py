@@ -49,12 +49,27 @@ class LogWorker(QObject):
             return None
 
     def load_tasks(self, status: Union[str, Iterable] = '', date: Union[str, Iterable] = ''):
-        """Load tasks that can be filtered by statuses and(or) dates"""
         status_filter = f' AND Status was "{status}"' if isinstance(status, str) else f' AND Status was IN {status}'
         date_filter = f' ON "{date}"' if isinstance(date, str) else f' DURING ("{date[0]}","{date[1]}")'
-        query = f'assignee = currentUser(){status_filter}{date_filter}'
+        user_filter = self.compose_user_filter()
+        ignored_list = ', '.join(self.settings['ignore_tasks']) if self.settings['ignore_tasks'] else []
+        ignored_filter = f' AND NOT issue in ({ignored_list})' if ignored_list else ''
+        query = f'{user_filter}{status_filter}{date_filter}{ignored_filter}'
         tasks = self.conn.search_issues(jql_str=query, maxResults=1000)
         return tasks
+
+    def compose_user_filter(self):
+        assignee = 'assignee=currentUser()' if self.settings['tasks_filter']['user_assignee'] else ''
+        validator = 'validator=currentUser()' if self.settings['tasks_filter']['user_validator'] else ''
+        creator = 'creator=currentUser()' if self.settings['tasks_filter']['user_creator'] else ''
+
+        user_filter = f'{assignee}' if assignee else f''
+        if validator:
+            user_filter = f'{validator}' if not assignee else f'({assignee} OR {validator})'
+        if creator:
+            user_filter = f'{creator}' if (not assignee and not validator) else f'({user_filter} OR {creator})'
+
+        return user_filter
 
     def calculate_logged_seconds_for_date(self, date: str):
         """Calculate already logged time in seconds by user for given date"""
