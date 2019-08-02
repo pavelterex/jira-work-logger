@@ -149,7 +149,9 @@ class LogWorker(QObject):
             # Removing occurrences of Med tasks in Low tasks if any
             ranked_tasks['low'] = [task for task in ranked_tasks['low'] if task not in ranked_tasks['medium']]
             overall_tasks_found = len(ranked_tasks['high']) + len(ranked_tasks['medium']) + len(ranked_tasks['low'])
-            self.msg.emit(f'Totally {overall_tasks_found} suitable task(s) found for this date')
+
+            if not self.settings['daily_only']:
+                self.msg.emit(f'Totally {overall_tasks_found} suitable task(s) found for this date')
 
             # Beginning of work logging cycle within High priority tasks
             tasks_comment = self.settings['tasks_comment'] or ''
@@ -168,10 +170,8 @@ class LogWorker(QObject):
 
             # Process Daily Tasks Only option
             if self.settings['daily_only']:
-                self.msg.emit('Daily Tasks processed. Exiting.')
-                self.msg.emit('Auto logging worker successfully finished')
-                self.thread().quit()
-                return
+                self.summarize_day_result(_date)
+                continue
 
             # Beginning of work logging cycle within Medium and Low Priority task
             if len(ranked_tasks['medium']) and ranked_tasks['low']:
@@ -204,20 +204,22 @@ class LogWorker(QObject):
             elif not len(ranked_tasks['medium']) and not ranked_tasks['low']:
                 self.warn.emit(f'Not enough tasks for sufficient time logging in {_date}!')
 
-            # Summarizing results
-            summary_msg = f'Summary for {_date}: Work log'
-            currently_logged_sec = self.calculate_logged_seconds_for_date(str(_date))
-            diff_sec = (self.settings['target_hrs'] * 3600) - currently_logged_sec
-
-            if not diff_sec:
-                self.msg.emit(f'{summary_msg} fully completed with {self.settings["target_hrs"]} hour(s)')
-            elif diff_sec > 0:
-                self.warn.emit(f'{summary_msg} still require {diff_sec / 3600} hour(s) to be logged!')
-            elif diff_sec < 0:
-                self.warn.emit(f'{summary_msg} overloaded by {abs(diff_sec) / 3600} hour(s)!')
+            self.summarize_day_result(_date)
 
         self.msg.emit(f'Auto logging worker successfully finished')
         self.thread().quit()
+
+    def summarize_day_result(self, date):
+        summary_msg = f'Summary for {date}: Work log'
+        currently_logged_sec = self.calculate_logged_seconds_for_date(str(date))
+        diff_sec = (self.settings['target_hrs'] * 3600) - currently_logged_sec
+
+        if not diff_sec:
+            self.msg.emit(f'{summary_msg} fully completed with {self.settings["target_hrs"]} hour(s)')
+        elif diff_sec > 0:
+            self.warn.emit(f'{summary_msg} still require {diff_sec / 3600} hour(s) to be logged!')
+        elif diff_sec < 0:
+            self.warn.emit(f'{summary_msg} overloaded by {abs(diff_sec) / 3600} hour(s)!')
 
 
 def str_to_sec(time_str: str):
