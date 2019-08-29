@@ -1,6 +1,6 @@
 from enum import IntEnum
 
-APP_VERSION = '1.0'
+APP_VERSION = '1.1'
 WEEKDAYS = {
     'MO': True,
     'TU': True,

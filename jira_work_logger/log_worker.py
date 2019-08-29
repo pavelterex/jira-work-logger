@@ -174,7 +174,7 @@ class LogWorker(QObject):
                 continue
 
             # Beginning of work logging cycle within Medium and Low Priority task
-            if len(ranked_tasks['medium']) and ranked_tasks['low']:
+            if ranked_tasks['medium'] and ranked_tasks['low']:
                 time_per_med = ((needed_sec / 3600) // len(ranked_tasks['medium'])) * 3600
                 time_per_low = ((needed_sec / 3600) % len(ranked_tasks['medium'])) * 3600
 
@@ -187,15 +187,15 @@ class LogWorker(QObject):
                     self.conn.add_worklog(task.key, timeSpentSeconds=time_per_low, started=date)
                     self.msg.emit(f'Work logged for task {task.key} = {time_per_low / 3600} hour(s)')
 
-            elif len(ranked_tasks['medium']) and not ranked_tasks['low']:
+            elif ranked_tasks['medium'] and not ranked_tasks['low']:
                 time_per_med = ((needed_sec / 3600) / len(ranked_tasks['medium'])) * 3600
 
                 for task in ranked_tasks['medium']:
                     self.conn.add_worklog(task.key, timeSpentSeconds=time_per_med, started=date)
                     self.msg.emit(f'Work logged for task {task.key} = {time_per_med / 3600} hour(s)')
 
-            elif not len(ranked_tasks['medium']) and ranked_tasks['low']:
-                time_per_low = ((needed_sec / 3600) % len(ranked_tasks['medium'])) * 3600
+            elif not ranked_tasks['medium'] and ranked_tasks['low']:
+                time_per_low = ((needed_sec / 3600) / len(ranked_tasks['low'])) * 3600
 
                 for task in ranked_tasks['low']:
                     self.conn.add_worklog(task.key, timeSpentSeconds=time_per_low, started=date)
